@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathBook Studio - Pembuat Buku Latihan Matematika Kreatif (F4 Bagi 2)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PapaParse untuk membaca CSV Spreadsheet dengan akurat -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Google Fonts ramah anak & edukasi -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #ec4899;
+            --accent: #f59e0b;
+        }
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+        }
+
+        h1, h2, h3, .font-display {
+            font-family: 'Fredoka', sans-serif;
+        }
+
+        .font-math {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Desain Kertas F4 Lanskap (330mm x 215mm) dibagi 2 halaman berdampingan (masing-masing 165mm x 215mm) */
+        .f4-sheet {
+            width: 330mm;
+            height: 215mm;
+            background: white;
+            margin: 0 auto 2rem auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        /* Garis potong / lipat tengah pada kertas F4 */
+        .f4-sheet::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            border-left: 2px dashed #cbd5e1;
+            transform: translateX(-50%);
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .half-f4-page {
+            width: 165mm;
+            height: 215mm;
+            padding: 10mm 12mm;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+
+        /* Dekorasi Latar Halaman Buku */
+        .page-pattern-dots {
+            background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+            background-size: 14px 14px;
+        }
+
+        /* Kontainer Responsif Preview di Layar Laptop & HP (Mobile-First Friendly) */
+        .preview-scale-wrapper {
+            width: 100%;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.75rem 0.5rem 2.5rem 0.5rem;
+        }
+
+        .sheet-scaler {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        @media screen and (max-width: 1350px) {
+            .f4-sheet {
+                transform: scale(0.75);
+                transform-origin: top center;
+                margin-bottom: -48mm;
+            }
+        }
+
+        @media screen and (max-width: 960px) {
+            .f4-sheet {
+                transform: scale(0.55);
+                transform-origin: top center;
+                margin-bottom: -92mm;
+            }
+        }
+
+        @media screen and (max-width: 680px) {
+            .f4-sheet {
+                transform: scale(0.36);
+                transform-origin: top center;
+                margin-bottom: -132mm;
+            }
+        }
+
+        @media screen and (max-width: 440px) {
+            .f4-sheet {
+                transform: scale(0.28);
+                transform-origin: top center;
+                margin-bottom: -150mm;
+            }
+        }
+
+        /* Custom Scrollbar untuk Tab Header di Mobile */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* ATURAN CETAK (PRINT) KHUSUS KERTAS F4 (330mm x 215mm Landscape) */
+        @media print {
+            @page {
+                size: 330mm 215mm;
+                margin: 0mm;
+            }
+
+            html, body {
+                background: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 330mm;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .preview-scale-wrapper {
+                padding: 0 !important;
+                overflow: visible !important;
+                display: block !important;
+            }
+
+            .f4-sheet {
+                transform: none !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                page-break-after: always;
+                break-after: page;
+                width: 330mm !important;
+                height: 215mm !important;
+            }
+
+            .f4-sheet:last-child {
+                page-break-after: auto;
+                break-after: auto;
+            }
+        }
+
+        /* Animasi halus */
+        .card-hover {
+            transition: all 0.2s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- HEADER & PANEL KONTROL (TIDAK IKUT TERCETAK) -->
+    <header class="no-print bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-600 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                    <div class="bg-white/20 p-2 rounded-2xl backdrop-blur-sm border border-white/30 shrink-0">
+                        <i data-lucide="book-open-check" class="w-6 h-6 text-yellow-300"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-base sm:text-xl font-bold tracking-wide flex flex-wrap items-center gap-1.5">
+                            MathBook Studio
+                            <span class="text-[10px] bg-yellow-400 text-indigo-950 px-2 py-0.5 rounded-full font-bold uppercase">F4 Bagi 2 (A5)</span>
+                        </h1>
+                        <p class="text-[11px] text-indigo-100 hidden sm:block">Generator Buku Matematika Kreatif • Siap Deploy GitHub & Cetak Timbal-Balik</p>
+                    </div>
+                </div>
+                <!-- Tombol Mobile Cepat -->
+                <button onclick="openPrintWindow('ALL')" class="sm:hidden flex items-center gap-1 bg-yellow-400 text-indigo-950 px-3 py-1.5 rounded-xl text-xs font-bold shadow">
+                    <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                    <span>Cetak</span>
+                </button>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+                <button onclick="loadSpreadsheetData(true)" id="btnSync" class="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="syncIcon"></i>
+                    <span>Sync Spreadsheet</span>
+                </button>
+                <button onclick="toggleDataInspector()" class="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 bg-indigo-950/50 hover:bg-indigo-950/70 border border-indigo-300/30 text-white px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition">
+                    <i data-lucide="table" class="w-3.5 h-3.5"></i>
+                    <span>Cek CSV</span>
+                </button>
+                <button onclick="openPrintWindow('ALL')" class="hidden sm:flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-indigo-950 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md transition transform active:scale-95">
+                    <i data-lucide="external-link" class="w-4 h-4"></i>
+                    <span>Buka Tab Cetak Baru (Timbal Balik F4)</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- PANEL KUSTOMISASI BUKU LENGKAP: TAB KELAS HEADER, CEKLIS VARIASI SOAL, TEMA GAMBAR & BENTUK (TIDAK IKUT TERCETAK) -->
+    <section class="no-print bg-white border-b border-slate-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-3 sm:px-4 py-3 space-y-3">
+
+            <!-- 1. TAB PILIHAN KELAS / PAKET SESUAI HEADER SPREADSHEET -->
+            <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                        <i data-lucide="layers" class="w-3.5 h-3.5 text-indigo-600"></i>
+                        1. Pilih Tab Kelas / Header Kolom Spreadsheet:
+                    </span>
+                    <span class="text-[10px] text-slate-500 font-semibold hidden sm:inline">Klik tab untuk memfilter soal sesuai kolom header di CSV</span>
+                </div>
+                <div id="headerClassTabs" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                    <!-- Diisi otomatis dari Header & Kelas CSV -->
+                    <button onclick="selectHeaderTab('ALL')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm shrink-0">
+                        🌟 Semua Header / Kelas
+                    </button>
+                </div>
+                <!-- Hidden select untuk kompatibilitas -->
+                <select id="selectClass" onchange="renderBook()" class="hidden">
+                    <option value="ALL">Semua Kelas</option>
+                </select>
+                <select id="selectTopic" onchange="renderBook()" class="hidden">
+                    <option value="ALL">Semua Topik</option>
+                </select>
+            </div>
+
+            <!-- 2. TAB CEKLIS VARIASI JENIS SOAL (BISA PILIH SATU, BEBERAPA, ATAU SEMUA) -->
+            <div class="bg-indigo-50/50 p-2.5 sm:p-3 rounded-2xl border border-indigo-100">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
+                        <i data-lucide="check-square" class="w-3.5 h-3.5 text-pink-600"></i>
+                        2. Ceklis Variasi Soal yang Ditampilkan di Halaman:
+                    </span>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" onclick="toggleAllVariationChecks(true)" class="text-[10px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded-lg transition">
+                            ☑️ Pilih Semua Jenis Soal
+                        </button>
+                        <button type="button" onclick="toggleAllVariationChecks(false)" class="text-[10px] font-bold bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-2 py-1 rounded-lg transition">
+                            Reset
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <!-- Ceklis 1: Hitung Ke Samping (Ukuran Besar & Jelas) -->
+                    <label class="flex items-start gap-2.5 p-2.5 rounded-xl border-2 border-indigo-200 bg-white hover:border-indigo-400 cursor-pointer transition shadow-sm">
+                        <input type="checkbox" id="chkVarHorizontal" checked onchange="onVariationCheckChange()" class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                        <div class="leading-tight">
+                            <div class="text-xs font-bold text-indigo-950 flex items-center gap-1">
+                                <span>➡️ Hitung Ke Samping (Besar)</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Angka ukuran besar & jelas (`5 + 5 = [  ]`), ramah anak SD</p>
+                        </div>
+                    </label>
+
+                    <!-- Ceklis 2: Penjumlahan / Hitung Bersusun Ke Bawah -->
+                    <label class="flex items-start gap-2.5 p-2.5 rounded-xl border-2 border-amber-200 bg-white hover:border-amber-400 cursor-pointer transition shadow-sm">
+                        <input type="checkbox" id="chkVarVertical" checked onchange="onVariationCheckChange()" class="mt-0.5 w-4 h-4 rounded text-amber-600 focus:ring-amber-500">
+                        <div class="leading-tight">
+                            <div class="text-xs font-bold text-amber-950 flex items-center gap-1">
+                                <span>⬇️ Hitung Bersusun Ke Bawah</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Susun puluhan & satuan ke bawah lengkap garis jumlah</p>
+                        </div>
+                    </label>
+
+                    <!-- Ceklis 3: Mencocokkan & Tarik Garis Soal ke Jawaban -->
+                    <label class="flex items-start gap-2.5 p-2.5 rounded-xl border-2 border-emerald-200 bg-white hover:border-emerald-400 cursor-pointer transition shadow-sm">
+                        <input type="checkbox" id="chkVarMatching" checked onchange="onVariationCheckChange()" class="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        <div class="leading-tight">
+                            <div class="text-xs font-bold text-emerald-950 flex items-center gap-1">
+                                <span>🔗 Mencocokkan / Tarik Garis</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Hubungkan titik soal di kiri ke jawaban acak di kanan</p>
+                        </div>
+                    </label>
+
+                    <!-- Ceklis 4: Kotak-Kotak Jumlah Benda Bergambar -->
+                    <label class="flex items-start gap-2.5 p-2.5 rounded-xl border-2 border-pink-200 bg-white hover:border-pink-400 cursor-pointer transition shadow-sm">
+                        <input type="checkbox" id="chkVarCountingBox" checked onchange="onVariationCheckChange()" class="mt-0.5 w-4 h-4 rounded text-pink-600 focus:ring-pink-500">
+                        <div class="leading-tight">
+                            <div class="text-xs font-bold text-pink-950 flex items-center gap-1">
+                                <span>🍎 Kotak Jumlah Benda</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-0.5">Hitung objek gambar berwarna di dalam kotak visual</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 3. PENGATURAN GAMBAR (WARNA & BENTUK), KEPADATAN, & TIMBAL-BALIK -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 items-end pt-1">
+                
+                <!-- Pilihan Tema Objek Gambar -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                        <i data-lucide="image" class="w-3.5 h-3.5 inline mr-1 text-pink-600"></i>Objek Gambar Soal
+                    </label>
+                    <select id="selectTheme" onchange="renderBook()" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500">
+                        <option value="FRUITS">🍓 Buah-Buahan Segar</option>
+                        <option value="ANIMALS">🦁 Hewan Lucu</option>
+                        <option value="GEOMETRY">🔷 Bentuk Geometri Warna</option>
+                        <option value="SPACE">🚀 Antariksa & Bintang</option>
+                        <option value="SCHOOL">✏️ Alat Tulis & Benda</option>
+                    </select>
+                </div>
+
+                <!-- Pilihan Warna & Bentuk Bingkai Gambar -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5 inline mr-1 text-purple-600"></i>Bentuk & Warna Bingkai
+                    </label>
+                    <div class="flex gap-1.5">
+                        <select id="selectBadgeShape" onchange="renderBook()" class="w-1/2 rounded-xl border border-slate-300 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700">
+                            <option value="ROUNDED">▢ Kotak Halus</option>
+                            <option value="CIRCLE">⚪ Lingkaran</option>
+                            <option value="HEXAGON">⬡ Segi Enam</option>
+                            <option value="STAR_CARD">⭐ Kartu Bintang</option>
+                        </select>
+                        <select id="selectColorPalette" onchange="renderBook()" class="w-1/2 rounded-xl border border-slate-300 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700">
+                            <option value="RAINBOW">🌈 Pelangi Cerah</option>
+                            <option value="PASTEL">🍬 Pastel Lembut</option>
+                            <option value="OCEAN">🌊 Biru Samudra</option>
+                            <option value="FOREST">🌿 Hijau Alam</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Kepadatan Soal & Label Kelas -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                        <i data-lucide="sliders" class="w-3.5 h-3.5 inline mr-1 text-amber-500"></i>Kepadatan & Nama Kelas
+                    </label>
+                    <div class="flex gap-1.5">
+                        <select id="selectDensity" onchange="renderBook()" class="w-3/5 rounded-xl border border-slate-300 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700">
+                            <option value="10" selected>🔥 Pas & Jelas (10/Hal)</option>
+                            <option value="12">⚡ Padat (12/Hal)</option>
+                            <option value="8">✨ Besar & Lega (8/Hal)</option>
+                        </select>
+                        <input type="text" id="customClassInput" oninput="renderBook()" placeholder="Kelas" value="Kelas 1 SD" class="w-2/5 rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-700">
+                    </div>
+                </div>
+
+                <!-- Susunan Timbal-Balik 4 Halaman F4 -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                        <i data-lucide="book-copy" class="w-3.5 h-3.5 inline mr-1 text-emerald-600"></i>Mode Timbal-Balik (F4)
+                    </label>
+                    <select id="selectDuplexMode" onchange="renderBook()" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-700">
+                        <option value="BOOKLET" selected>📖 Lipat Buku ([4|1] & [2|3])</option>
+                        <option value="CUT_DUPLEX">✂️ Potong Tengah ([1|3] & [4|2])</option>
+                        <option value="SEQUENTIAL">📄 Urut Biasa ([1|2] & [3|4])</option>
+                    </select>
+                </div>
+
+                <!-- Opsi Tambahan -->
+                <div class="flex flex-wrap sm:flex-col justify-between gap-1.5 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                    <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="chkCover" checked onchange="renderBook()" class="rounded text-indigo-600">
+                        <span>Sampul Buku</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="chkAutoFill4Pages" checked onchange="renderBook()" class="rounded text-indigo-600">
+                        <span>Genapkan 4 Hal/F4</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 cursor-pointer">
+                        <input type="checkbox" id="chkAnswerKey" onchange="renderBook()" class="rounded text-emerald-600">
+                        <span>Kunci Jawaban</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Baris Info Status Koneksi Spreadsheet & Tombol Cepat Cetak Sisi Depan / Belakang -->
+            <div class="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs text-slate-500">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span id="statusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold bg-amber-100 text-amber-800 text-[11px]">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                        Menghubungkan ke Google Spreadsheet...
+                    </span>
+                    <span id="questionCountInfo" class="font-semibold text-slate-600 text-[11px]"></span>
+                </div>
+                <div class="grid grid-cols-3 sm:flex items-center gap-1.5">
+                    <button onclick="shuffleQuestions()" class="justify-center text-indigo-700 hover:bg-indigo-100 font-bold flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-xl text-[11px]">
+                        <i data-lucide="shuffle" class="w-3.5 h-3.5"></i> Acak Soal
+                    </button>
+                    <button onclick="openPrintWindow('FRONT')" class="justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-xl font-bold flex items-center gap-1 text-[11px]">
+                        <i data-lucide="printer" class="w-3.5 h-3.5"></i> Cetak Depan
+                    </button>
+                    <button onclick="openPrintWindow('BACK')" class="justify-center bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-2.5 py-1.5 rounded-xl font-bold flex items-center gap-1 text-[11px]">
+                        <i data-lucide="printer" class="w-3.5 h-3.5"></i> Cetak Belakang
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MODAL / PANEL INSPEKTOR DATA SPREADSHEET & EDITOR -->
+    <div id="dataInspectorModal" class="no-print hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+            <div class="px-6 py-4 bg-slate-800 text-white flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="database" class="w-5 h-5 text-emerald-400"></i>
+                    <h3 class="font-bold text-lg">Data Soal dari Google Spreadsheet</h3>
+                </div>
+                <button onclick="toggleDataInspector()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm">
+                <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-indigo-950">
+                    <p class="font-bold mb-1">💡 Terhubung Otomatis ke Link Spreadsheet Anda:</p>
+                    <input type="text" id="csvUrlInput" class="w-full bg-white border border-indigo-300 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-700 mb-2" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vROW1CsI3JIxyEV81IuSqJifHa2t81Ev9ENpNeJgW9QlUKTO0YdqJZIgK147i_0P_bvRvqCkYfFK5JR/pub?gid=0&single=true&output=csv">
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="loadSpreadsheetData(true)" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold">
+                            Ambil Data dari URL Ini
+                        </button>
+                        <span class="text-xs text-indigo-700 self-center">Setiap kali Anda mengubah soal di Google Spreadsheet, cukup klik "Muat Ulang Spreadsheet".</span>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-slate-700 mb-2">Header & Soal yang Terbaca (<span id="detectedHeadersText">Memuat...</span>):</h4>
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl max-h-64">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead id="rawTableHead" class="bg-slate-100 text-slate-700 sticky top-0"></thead>
+                            <tbody id="rawTableBody" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-3 bg-slate-100 border-t border-slate-200 flex justify-end">
+                <button onclick="toggleDataInspector()" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AREA PREVIEW BUKU (CETAK F4 BAGI 2) -->
+    <main class="flex-1 preview-scale-wrapper" id="bookContainer">
+        <!-- Lembar-lembar F4 (masing-masing berisi 2 halaman A5/Setengah F4) akan dirender di sini oleh JavaScript -->
+    </main>
+
+    <!-- FOOTER (TIDAK IKUT TERCETAK) -->
+    <footer class="no-print bg-white border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-500">
+        <p><b>Tips Mencetak:</b> Tekan tombol <b>"Cetak Buku (F4)"</b> di kanan atas, pilih ukuran kertas <b>F4 / Folio (215 x 330 mm)</b>, orientasi <b>Landscape (Lanskap)</b>, dan centang <b>Background Graphics (Grafis Latar)</b>.</p>
+    </footer>
+
+    <script>
+        // URL Spreadsheet dari pengguna
+        const DEFAULT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vROW1CsI3JIxyEV81IuSqJifHa2t81Ev9ENpNeJgW9QlUKTO0YdqJZIgK147i_0P_bvRvqCkYfFK5JR/pub?gid=0&single=true&output=csv";
+
+        // State Aplikasi
+        let allParsedQuestions = [];
+        let rawCsvRows = [];
+        let rawCsvHeaders = [];
+        let availableClasses = new Set();
+        let availableTopics = new Set();
+
+        // Koleksi Clipart Gratis (Twemoji CDN SVG & Open Clipart Icons) agar gambar tajam saat dicetak & bebas blokir CORS
+        const CLIPART_THEMES = {
+            FRUITS: [
+                { name: 'Apel', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f34e.svg' },
+                { name: 'Stroberi', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f353.svg' },
+                { name: 'Jeruk', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f34a.svg' },
+                { name: 'Semangka', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f349.svg' },
+                { name: 'Pisang', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f34c.svg' },
+                { name: 'Anggur', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f347.svg' },
+                { name: 'Donat', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f369.svg' },
+                { name: 'Es Krim', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f366.svg' }
+            ],
+            ANIMALS: [
+                { name: 'Singa', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f981.svg' },
+                { name: 'Kelinci', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f430.svg' },
+                { name: 'Kucing', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f431.svg' },
+                { name: 'Panda', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f43c.svg' },
+                { name: 'Ayam', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f425.svg' },
+                { name: 'Ikan', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f420.svg' },
+                { name: 'Kupu-kupu', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f98b.svg' },
+                { name: 'Kura-kura', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f422.svg' }
+            ],
+            SPACE: [
+                { name: 'Roket', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f680.svg' },
+                { name: 'Bintang', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/2b50.svg' },
+                { name: 'Planet', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1fa90.svg' },
+                { name: 'UFO', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f6f8.svg' },
+                { name: 'Bulan', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f319.svg' },
+                { name: 'Matahari', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/2600.svg' }
+            ],
+            SCHOOL: [
+                { name: 'Pensil', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/270f.svg' },
+                { name: 'Buku', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4d6.svg' },
+                { name: 'Piala', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f3c6.svg' },
+                { name: 'Balon', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f388.svg' },
+                { name: 'Bola', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/26bd.svg' },
+                { name: 'Permen', url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f36c.svg' }
+            ],
+            GEOMETRY: [
+                { name: 'Bintang Emas', svg: `<svg viewBox="0 0 24 24" class="w-full h-full fill-amber-400 stroke-amber-600 stroke-2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>` },
+                { name: 'Hati Merah', svg: `<svg viewBox="0 0 24 24" class="w-full h-full fill-rose-500 stroke-rose-700 stroke-2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>` },
+                { name: 'Berlian Biru', svg: `<svg viewBox="0 0 24 24" class="w-full h-full fill-sky-400 stroke-sky-700 stroke-2"><polygon points="12 2 22 12 12 22 2 12 12 2"/></svg>` },
+                { name: 'Lingkaran Ungu', svg: `<svg viewBox="0 0 24 24" class="w-full h-full fill-purple-500 stroke-purple-800 stroke-2"><circle cx="12" cy="12" r="9"/></svg>` },
+                { name: 'Segitiga Hijau', svg: `<svg viewBox="0 0 24 24" class="w-full h-full fill-emerald-400 stroke-emerald-700 stroke-2"><polygon points="12 3 22 20 2 20 12 3"/></svg>` },
+                { name: 'Segi Enam Oranye', svg: `<svg viewBox="0 0 24 24" class="w-full h-full fill-orange-400 stroke-orange-700 stroke-2"><polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2"/></svg>` }
+            ]
+        };
+
+        // Palet warna untuk mempercantik bentuk bingkai objek gambar & kartu soal
+        const COLOR_PALETTES = {
+            RAINBOW: [
+                { bg: 'bg-rose-100', border: 'border-rose-300', text: 'text-rose-800', accent: 'bg-rose-500' },
+                { bg: 'bg-amber-100', border: 'border-amber-300', text: 'text-amber-800', accent: 'bg-amber-500' },
+                { bg: 'bg-emerald-100', border: 'border-emerald-300', text: 'text-emerald-800', accent: 'bg-emerald-500' },
+                { bg: 'bg-sky-100', border: 'border-sky-300', text: 'text-sky-800', accent: 'bg-sky-500' },
+                { bg: 'bg-violet-100', border: 'border-violet-300', text: 'text-violet-800', accent: 'bg-violet-500' }
+            ],
+            PASTEL: [
+                { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-700', accent: 'bg-pink-400' },
+                { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', accent: 'bg-purple-400' },
+                { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', accent: 'bg-teal-400' },
+                { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', accent: 'bg-orange-400' }
+            ],
+            OCEAN: [
+                { bg: 'bg-cyan-50', border: 'border-cyan-300', text: 'text-cyan-900', accent: 'bg-cyan-600' },
+                { bg: 'bg-sky-50', border: 'border-sky-300', text: 'text-sky-900', accent: 'bg-sky-600' },
+                { bg: 'bg-indigo-50', border: 'border-indigo-300', text: 'text-indigo-900', accent: 'bg-indigo-600' }
+            ],
+            FOREST: [
+                { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-900', accent: 'bg-emerald-600' },
+                { bg: 'bg-lime-50', border: 'border-lime-300', text: 'text-lime-900', accent: 'bg-lime-600' },
+                { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-900', accent: 'bg-amber-600' }
+            ]
+        };
+
+        let activeHeaderTab = 'ALL';
+
+        // Kamus pemetaan kata benda di soal (jika soal di spreadsheet menyebutkan nama benda/gambar)
+        const KEYWORD_CLIPART_MAP = {
+            'apel': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f34e.svg',
+            'jeruk': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f34a.svg',
+            'pisang': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f34c.svg',
+            'mangga': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f96d.svg',
+            'stroberi': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f353.svg',
+            'semangka': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f349.svg',
+            'anggur': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f347.svg',
+            'kucing': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f431.svg',
+            'ayam': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f425.svg',
+            'ikan': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f420.svg',
+            'burung': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f426.svg',
+            'kelinci': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f430.svg',
+            'bintang': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/2b50.svg',
+            'bola': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/26bd.svg',
+            'balon': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f388.svg',
+            'mobil': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f697.svg',
+            'buku': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4d6.svg',
+            'pensil': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/270f.svg',
+            'permen': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f36c.svg',
+            'kue': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f370.svg',
+            'es krim': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f366.svg',
+            'bunga': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f338.svg'
+        };
+
+        /**
+         * Memбоngkar ekspresi matematika seperti "4 + 4 =", "12 - 5 =", "6 x 3", "15 : 3 ="
+         * atau angka terpisah dari dalam teks.
+         */
+        function parseMathExpression(rawStr) {
+            if (!rawStr) return null;
+            const clean = String(rawStr).trim();
+            if (!clean) return null;
+
+            // Cek pola operasi matematika: Angka1 [Operator] Angka2
+            // Mendukung +, -, x, X, *, :, /, ÷
+            const regex = /(\d+)\s*([\+\-\*xX×\:\/÷])\s*(\d+)/;
+            const match = clean.match(regex);
+
+            if (match) {
+                const num1 = parseInt(match[1], 10);
+                const rawOp = match[2];
+                const num2 = parseInt(match[3], 10);
+
+                let opSymbol = '+';
+                let answer = num1 + num2;
+
+                if (rawOp === '-') {
+                    opSymbol = '-';
+                    answer = num1 - num2;
+                } else if (['x', 'X', '*', '×'].includes(rawOp)) {
+                    opSymbol = '×';
+                    answer = num1 * num2;
+                } else if ([':', '/', '÷'].includes(rawOp)) {
+                    opSymbol = '÷';
+                    answer = num2 !== 0 ? Math.round((num1 / num2) * 100) / 100 : 0;
+                }
+
+                // Cek apakah ada kata benda untuk clipart di dalam teks soal
+                let detectedIcon = null;
+                const lower = clean.toLowerCase();
+                for (const [key, url] of Object.entries(KEYWORD_CLIPART_MAP)) {
+                    if (lower.includes(key)) {
+                        detectedIcon = { name: key.charAt(0).toUpperCase() + key.slice(1), url };
+                        break;
+                    }
+                }
+
+                return {
+                    type: 'MATH_OP',
+                    raw: clean,
+                    num1,
+                    op: opSymbol,
+                    num2,
+                    answer,
+                    detectedIcon
+                };
+            }
+
+            // Jika soal cerita / teks yang mengandung angka tapi bukan format "a + b =" langsung
+            if (/\d/.test(clean) && (clean.includes('?') || clean.includes('=') || clean.includes('...') || clean.length > 5)) {
+                return {
+                    type: 'WORD_PROBLEM',
+                    raw: clean,
+                    num1: null,
+                    op: null,
+                    num2: null,
+                    answer: '?'
+                };
+            }
+
+            return null;
+        }
+
+        /**
+         * Memproses data CSV dari Google Spreadsheet secara cerdas,
+         * termasuk membaca jika soal ada di bagian Header (seperti "4 + 4 =") maupun di tiap baris/kolom.
+         */
+        function processCsvData(results) {
+            const rows = results.data;
+            if (!rows || rows.length === 0) return;
+
+            rawCsvHeaders = rows[0].map(h => String(h || '').trim());
+            rawCsvRows = rows.slice(1);
+
+            allParsedQuestions = [];
+            availableClasses = new Set();
+            availableTopics = new Set();
+
+            // Identifikasi apakah ada kolom khusus bernama "Kelas", "Level", "Kategori", "Gambar", "Jawaban"
+            let classColIdx = -1;
+            let topicColIdx = -1;
+            let imageColIdx = -1;
+            let answerColIdx = -1;
+
+            rawCsvHeaders.forEach((h, idx) => {
+                const lower = h.toLowerCase();
+                if (lower.includes('kelas') || lower.includes('level') || lower.includes('jenjang')) classColIdx = idx;
+                else if (lower.includes('bab') || lower.includes('topik') || lower.includes('kategori') || lower.includes('materi')) topicColIdx = idx;
+                else if (lower.includes('gambar') || lower.includes('image') || lower.includes('foto') || lower.includes('icon') || lower.includes('url')) imageColIdx = idx;
+                else if (lower.includes('jawab') || lower.includes('hasil') || lower === 'key') answerColIdx = idx;
+            });
+
+            // 1. CEK APAKAH HEADER SENDIRI ADALAH SOAL (Misal pengguna menulis "4 + 4 =" langsung di baris pertama / header)
+            rawCsvHeaders.forEach((headerCell, colIdx) => {
+                const parsedHeaderMath = parseMathExpression(headerCell);
+                if (parsedHeaderMath) {
+                    const headerLabel = headerCell || `Kolom ${colIdx + 1}`;
+                    availableClasses.add(headerLabel);
+                    availableTopics.add(headerLabel);
+                    allParsedQuestions.push({
+                        id: `H-${colIdx}`,
+                        kelas: headerLabel,
+                        topic: headerLabel,
+                        ...parsedHeaderMath,
+                        customImage: null
+                    });
+                }
+            });
+
+            // 2. BACA SETIAP BARIS DI SPREADSHEET
+            rawCsvRows.forEach((row, rowIdx) => {
+                // Lewati baris kosong
+                if (!row || row.every(cell => !String(cell || '').trim())) return;
+
+                const rowClass = (classColIdx !== -1 && row[classColIdx]) ? String(row[classColIdx]).trim() : '';
+                const rowTopic = (topicColIdx !== -1 && row[topicColIdx]) ? String(row[topicColIdx]).trim() : '';
+                const rowImg = (imageColIdx !== -1 && row[imageColIdx]) ? String(row[imageColIdx]).trim() : '';
+                const rowAns = (answerColIdx !== -1 && row[answerColIdx]) ? String(row[answerColIdx]).trim() : '';
+
+                if (rowClass) availableClasses.add(rowClass);
+
+                // Cek apakah baris ini memisahkan angka di kolom berbeda: misal [4] [+] [4] [=]
+                const joinedRow = row.map(c => String(c || '').trim()).join(' ');
+                let foundInCells = false;
+
+                row.forEach((cell, colIdx) => {
+                    if ([classColIdx, topicColIdx, imageColIdx, answerColIdx].includes(colIdx)) return;
+
+                    const cellStr = String(cell || '').trim();
+                    if (!cellStr) return;
+
+                    const parsed = parseMathExpression(cellStr);
+                    if (parsed) {
+                        foundInCells = true;
+                        const headerName = rawCsvHeaders[colIdx] || `Kolom ${colIdx + 1}`;
+                        // Gunakan nama Header Kolom sebagai Tab Kelas/Kategori agar bisa dipilih sesuai Header Spreadsheet
+                        let className = rowClass || headerName;
+                        let topicName = rowTopic || headerName;
+
+                        availableClasses.add(className);
+                        availableTopics.add(topicName);
+
+                        if (rowAns && !isNaN(Number(rowAns))) {
+                            parsed.answer = Number(rowAns);
+                        }
+
+                        allParsedQuestions.push({
+                            id: `R${rowIdx}-C${colIdx}`,
+                            kelas: className,
+                            topic: topicName,
+                            ...parsed,
+                            customImage: rowImg && rowImg.startsWith('http') ? rowImg : null
+                        });
+                    }
+                });
+
+                // Jika tidak ditemukan di satu sel tunggal, coba cek gabungan sel sebaris (misal Kolom A="4", Kolom B="+", Kolom C="4")
+                if (!foundInCells) {
+                    const parsedRow = parseMathExpression(joinedRow);
+                    if (parsedRow) {
+                        const firstHeader = rawCsvHeaders[0] || 'Kelas Umum';
+                        const className = rowClass || firstHeader;
+                        const topicName = rowTopic || firstHeader;
+                        availableClasses.add(className);
+                        availableTopics.add(topicName);
+
+                        allParsedQuestions.push({
+                            id: `R${rowIdx}-JOIN`,
+                            kelas: className,
+                            topic: topicName,
+                            ...parsedRow,
+                            customImage: rowImg && rowImg.startsWith('http') ? rowImg : null
+                        });
+                    }
+                }
+            });
+
+            // Jika Spreadsheet belum memiliki banyak soal, tambahkan pelengkap atau gunakan soal yang ada
+            if (allParsedQuestions.length === 0) {
+                loadFallbackQuestions();
+            }
+
+            updateFilterDropdowns();
+            updateInspectorTable();
+            renderBook();
+        }
+
+        /**
+         * Cadangan jika internet pengguna offline saat membuka pertama kali
+         */
+        function loadFallbackQuestions() {
+            const sample = [
+                { expr: '4 + 4 =', kelas: 'Kelas 1 SD', topic: 'Penjumlahan Dasar' },
+                { expr: '5 + 3 =', kelas: 'Kelas 1 SD', topic: 'Penjumlahan Dasar' },
+                { expr: '6 + 2 =', kelas: 'Kelas 1 SD', topic: 'Penjumlahan Dasar' },
+                { expr: '7 + 5 =', kelas: 'Kelas 1 SD', topic: 'Penjumlahan Dasar' },
+                { expr: '9 - 4 =', kelas: 'Kelas 1 SD', topic: 'Pengurangan Dasar' },
+                { expr: '8 - 3 =', kelas: 'Kelas 1 SD', topic: 'Pengurangan Dasar' },
+                { expr: '10 - 6 =', kelas: 'Kelas 1 SD', topic: 'Pengurangan Dasar' },
+                { expr: '12 + 15 =', kelas: 'Kelas 2 SD', topic: 'Hitung Bersusun' },
+                { expr: '24 + 13 =', kelas: 'Kelas 2 SD', topic: 'Hitung Bersusun' },
+                { expr: '35 - 14 =', kelas: 'Kelas 2 SD', topic: 'Hitung Bersusun' },
+                { expr: '48 - 25 =', kelas: 'Kelas 2 SD', topic: 'Hitung Bersusun' },
+                { expr: '3 x 4 =', kelas: 'Kelas 2 SD', topic: 'Perkalian Dasar' }
+            ];
+            allParsedQuestions = sample.map((item, idx) => {
+                availableClasses.add(item.kelas);
+                availableTopics.add(item.topic);
+                return {
+                    id: `FB-${idx}`,
+                    kelas: item.kelas,
+                    topic: item.topic,
+                    ...parseMathExpression(item.expr),
+                    customImage: null
+                };
+            });
+        }
+
+        /**
+         * Mengambil data langsung dari Google Spreadsheet CSV
+         */
+        async function loadSpreadsheetData(isManual = false) {
+            const syncIcon = document.getElementById('syncIcon');
+            const statusBadge = document.getElementById('statusBadge');
+            const csvUrl = document.getElementById('csvUrlInput')?.value?.trim() || DEFAULT_CSV_URL;
+
+            if (syncIcon) syncIcon.classList.add('animate-spin');
+            statusBadge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold bg-amber-100 text-amber-800";
+            statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> Mengambil data dari Spreadsheet...`;
+
+            // Tambahkan cache-buster agar perubahan terbaru di Spreadsheet langsung tampil
+            const fetchUrl = csvUrl + (csvUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+
+            Papa.parse(fetchUrl, {
+                download: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (syncIcon) syncIcon.classList.remove('animate-spin');
+                    processCsvData(results);
+                    statusBadge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold bg-emerald-100 text-emerald-800";
+                    statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Terhubung ke Spreadsheet (${allParsedQuestions.length} Soal Aktif)`;
+                },
+                error: function(err) {
+                    console.warn("Gagal memuat langsung, mencoba proxy/fallback:", err);
+                    if (syncIcon) syncIcon.classList.remove('animate-spin');
+                    loadFallbackQuestions();
+                    updateFilterDropdowns();
+                    renderBook();
+                    statusBadge.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold bg-rose-100 text-rose-800";
+                    statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> Mode Offline / Data Contoh Aktif`;
+                }
+            });
+        }
+
+        function updateFilterDropdowns() {
+            const selectClass = document.getElementById('selectClass');
+            const selectTopic = document.getElementById('selectTopic');
+            const tabsContainer = document.getElementById('headerClassTabs');
+
+            selectClass.innerHTML = `<option value="ALL">Semua Kelas (${allParsedQuestions.length} Soal)</option>`;
+            availableClasses.forEach(cls => {
+                const count = allParsedQuestions.filter(q => q.kelas === cls).length;
+                selectClass.innerHTML += `<option value="${cls}">${cls} (${count} Soal)</option>`;
+            });
+
+            selectTopic.innerHTML = `<option value="ALL">Semua Topik / Kolom</option>`;
+            availableTopics.forEach(tpc => {
+                const count = allParsedQuestions.filter(q => q.topic === tpc).length;
+                selectTopic.innerHTML += `<option value="${tpc}">${tpc} (${count} Soal)</option>`;
+            });
+
+            if (![...availableClasses].includes(activeHeaderTab)) {
+                activeHeaderTab = 'ALL';
+            }
+            selectClass.value = activeHeaderTab;
+
+            // Render Tab Pilihan Kelas / Header Spreadsheet
+            if (tabsContainer) {
+                let tabsHtml = `
+                    <button type="button" onclick="selectHeaderTab('ALL')" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${activeHeaderTab === 'ALL' ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300' : 'bg-white text-slate-700 hover:bg-indigo-50 border border-slate-200'}">
+                        <span>🌟 Semua Header / Kelas</span>
+                        <span class="px-1.5 py-0.2 rounded-full text-[10px] ${activeHeaderTab === 'ALL' ? 'bg-indigo-800 text-indigo-100' : 'bg-slate-100 text-slate-600'}">${allParsedQuestions.length}</span>
+                    </button>
+                `;
+
+                availableClasses.forEach((cls, idx) => {
+                    const count = allParsedQuestions.filter(q => q.kelas === cls).length;
+                    const isActive = activeHeaderTab === cls;
+                    const escapedCls = cls.replace(/'/g, "\\'");
+                    tabsHtml += `
+                        <button type="button" onclick="selectHeaderTab('${escapedCls}')" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${isActive ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300' : 'bg-white text-slate-700 hover:bg-indigo-50 border border-slate-200'}">
+                            <span>📑 ${cls}</span>
+                            <span class="px-1.5 py-0.2 rounded-full text-[10px] ${isActive ? 'bg-indigo-800 text-indigo-100' : 'bg-slate-100 text-slate-600'}">${count}</span>
+                        </button>
+                    `;
+                });
+
+                tabsContainer.innerHTML = tabsHtml;
+            }
+        }
+
+        function selectHeaderTab(tabValue) {
+            activeHeaderTab = tabValue;
+            const selectClass = document.getElementById('selectClass');
+            if (selectClass) selectClass.value = tabValue;
+
+            // Update juga label kelas otomatis jika memilih tab spesifik
+            const customClassInput = document.getElementById('customClassInput');
+            if (customClassInput && tabValue !== 'ALL') {
+                customClassInput.value = tabValue;
+            }
+
+            updateFilterDropdowns();
+            renderBook();
+        }
+
+        function toggleAllVariationChecks(checkAll) {
+            const ids = ['chkVarHorizontal', 'chkVarVertical', 'chkVarMatching', 'chkVarCountingBox'];
+            ids.forEach((id, idx) => {
+                const el = document.getElementById(id);
+                if (el) el.checked = checkAll ? true : (idx === 0); // Minimal 1 terpilih jika reset
+            });
+            renderBook();
+        }
+
+        function onVariationCheckChange() {
+            const ids = ['chkVarHorizontal', 'chkVarVertical', 'chkVarMatching', 'chkVarCountingBox'];
+            const anyChecked = ids.some(id => document.getElementById(id)?.checked);
+            if (!anyChecked) {
+                // Pastikan minimal 1 jenis soal tetap aktif agar halaman tidak kosong
+                document.getElementById('chkVarHorizontal').checked = true;
+            }
+            renderBook();
+        }
+
+        function updateInspectorTable() {
+            const headEl = document.getElementById('rawTableHead');
+            const bodyEl = document.getElementById('rawTableBody');
+            const headerInfo = document.getElementById('detectedHeadersText');
+
+            headerInfo.textContent = rawCsvHeaders.length ? `Header: ${rawCsvHeaders.join(' | ')}` : 'Data Terbaca';
+
+            headEl.innerHTML = `<tr>${rawCsvHeaders.map(h => `<th class="px-3 py-2 border-b font-bold">${h || '(Kosong)'}</th>`).join('')}</tr>`;
+            bodyEl.innerHTML = rawCsvRows.slice(0, 30).map(r => `
+                <tr class="hover:bg-slate-50">
+                    ${rawCsvHeaders.map((_, i) => `<td class="px-3 py-1.5 font-mono text-slate-600">${r[i] || ''}</td>`).join('')}
+                </tr>
+            `).join('');
+        }
+
+        function toggleDataInspector() {
+            const modal = document.getElementById('dataInspectorModal');
+            modal.classList.toggle('hidden');
+        }
+
+        function shuffleQuestions() {
+            allParsedQuestions.sort(() => Math.random() - 0.5);
+            renderBook();
+        }
+
+        /**
+         * Memilih gambar clipart & style bingkai warna/bentuk yang sesuai untuk soal
+         */
+        function getClipartForQuestion(q, index) {
+            if (q.customImage) {
+                return { name: 'Objek', url: q.customImage };
+            }
+            if (q.detectedIcon) {
+                return q.detectedIcon;
+            }
+            const themeKey = document.getElementById('selectTheme')?.value || 'FRUITS';
+            const list = CLIPART_THEMES[themeKey] || CLIPART_THEMES.FRUITS;
+            return list[index % list.length];
+        }
+
+        function getPaletteColor(index) {
+            const paletteKey = document.getElementById('selectColorPalette')?.value || 'RAINBOW';
+            const list = COLOR_PALETTES[paletteKey] || COLOR_PALETTES.RAINBOW;
+            return list[index % list.length];
+        }
+
+        function renderStyledIconBadge(icon, index, sizeClass = "w-6 h-6", imgSizeClass = "w-4 h-4") {
+            const shape = document.getElementById('selectBadgeShape')?.value || 'ROUNDED';
+            const pal = getPaletteColor(index);
+
+            let shapeStyle = 'rounded-lg';
+            let extraStyle = '';
+            if (shape === 'CIRCLE') {
+                shapeStyle = 'rounded-full';
+            } else if (shape === 'HEXAGON') {
+                shapeStyle = 'rounded-md';
+                extraStyle = 'clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%);';
+            } else if (shape === 'STAR_CARD') {
+                shapeStyle = 'rounded-xl rotate-3';
+            }
+
+            const innerMedia = icon.svg
+                ? `<div class="${imgSizeClass} flex items-center justify-center">${icon.svg}</div>`
+                : `<img src="${icon.url}" class="${imgSizeClass} object-contain" alt="" onerror="this.style.display='none'">`;
+
+            return `
+                <div class="${sizeClass} ${shapeStyle} ${pal.bg} border ${pal.border} flex items-center justify-center shrink-0 shadow-sm" style="${extraStyle}">
+                    ${innerMedia}
+                </div>
+            `;
+        }
+
+        /**
+         * Menghasilkan soal tambahan berbasis pola soal dari Spreadsheet
+         * apabila jumlah soal di Spreadsheet belum cukup untuk mengisi penuh 1 lembar F4 bolak-balik (4 halaman A5)
+         */
+        function expandQuestionsFromSeed(seedQuestions, targetCount) {
+            if (!seedQuestions || seedQuestions.length === 0) return [];
+            const result = [...seedQuestions];
+            let idx = 0;
+
+            while (result.length < targetCount) {
+                const base = seedQuestions[idx % seedQuestions.length];
+                idx++;
+                if (base.type === 'MATH_OP') {
+                    // Buat variasi angka yang setara tingkat kesulitannya dengan acuan di Spreadsheet
+                    const maxVal = Math.max(base.num1, base.num2, 5);
+                    const minVal = maxVal > 10 ? 2 : 1;
+                    let n1 = ((base.num1 + idx * 2) % maxVal) + minVal;
+                    let n2 = ((base.num2 + idx * 3) % maxVal) + minVal;
+
+                    if (base.op === '-' && n1 < n2) {
+                        const tmp = n1; n1 = n2; n2 = tmp;
+                    }
+                    let ans = n1 + n2;
+                    if (base.op === '-') ans = n1 - n2;
+                    else if (base.op === '×') ans = n1 * n2;
+                    else if (base.op === '÷') {
+                        n2 = Math.max(1, (n2 % 5) + 1);
+                        ans = (n1 % 5) + 1;
+                        n1 = ans * n2;
+                    }
+
+                    result.push({
+                        ...base,
+                        id: `${base.id}-VAR-${result.length}`,
+                        raw: `${n1} ${base.op} ${n2} =`,
+                        num1: n1,
+                        num2: n2,
+                        answer: ans
+                    });
+                } else {
+                    result.push({ ...base, id: `${base.id}-COPY-${result.length}` });
+                }
+            }
+            return result;
+        }
+
+        /**
+         * TIPE 1: Soal Penjumlahan/Hitung Mendatar Ke Samping UKURAN BESAR & JELAS
+         * (Tidak terlalu kecil, angka tegas, mudah dibaca dan diisi siswa)
+         */
+        function renderLargeHorizontalItem(q, number, showAnswer, index) {
+            const icon = getClipartForQuestion(q, index);
+            const pal = getPaletteColor(index);
+            return `
+                <div class="border-2 ${pal.border} rounded-2xl px-3 py-2 bg-white flex items-center justify-between shadow-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full ${pal.accent} text-white font-display font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                            ${number}
+                        </span>
+                        ${renderStyledIconBadge(icon, index, 'w-7 h-7', 'w-4 h-4')}
+                        <span class="font-math font-extrabold text-lg sm:text-xl text-slate-800 tracking-wide">
+                            ${q.num1} ${q.op} ${q.num2} =
+                        </span>
+                    </div>
+                    <div class="w-14 h-9 rounded-xl border-2 border-dashed ${pal.border} ${pal.bg} flex items-center justify-center font-math font-extrabold text-lg ${showAnswer ? 'text-emerald-700' : ''}">
+                        ${showAnswer ? q.answer : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * TIPE 2: Soal Hitung Bersusun Ke Bawah (Angka Jelas & Kotak Rapi)
+         */
+        function renderCompactVerticalItem(q, number, showAnswer, index) {
+            const digits1 = String(q.num1).padStart(2, ' ');
+            const digits2 = String(q.num2).padStart(2, ' ');
+            const pal = getPaletteColor(index);
+
+            return `
+                <div class="border-2 ${pal.border} rounded-2xl p-2 ${pal.bg} flex flex-col justify-between relative shadow-sm">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="w-5 h-5 rounded-full ${pal.accent} text-white font-display font-bold text-[10px] flex items-center justify-center">
+                            ${number}
+                        </span>
+                        <span class="text-[8px] font-bold uppercase ${pal.text}">Bersusun</span>
+                    </div>
+                    <div class="bg-white border ${pal.border} rounded-xl px-2.5 py-1 mx-auto w-full">
+                        <div class="grid grid-cols-3 text-right font-math text-lg font-extrabold text-slate-800 leading-snug">
+                            <div></div>
+                            <div class="text-center">${digits1[0] !== ' ' ? digits1[0] : ''}</div>
+                            <div class="text-center">${digits1[digits1.length - 1]}</div>
+
+                            <div class="text-amber-600 text-left pl-0.5">${q.op}</div>
+                            <div class="text-center">${digits2[0] !== ' ' ? digits2[0] : ''}</div>
+                            <div class="text-center">${digits2[digits2.length - 1]}</div>
+                        </div>
+                        <div class="border-b-2 border-slate-800 my-0.5"></div>
+                        <div class="h-6 flex items-center justify-end pr-1.5 font-math text-lg font-extrabold ${showAnswer ? 'text-emerald-600' : 'text-slate-300'}">
+                            ${showAnswer ? q.answer : '....'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * TIPE 3: Soal Mencocokkan & Tarik Garis Soal ke Jawaban Sesuai Database
+         */
+        function renderMatchingLinesSection(questionsList, startNo, showAnswer, startIndex) {
+            if (!questionsList || questionsList.length === 0) return '';
+
+            // Buat daftar jawaban di sisi kanan yang diacak urutannya secara deterministik agar tidak sejajar lurus
+            const rightSideAnswers = questionsList.map((q, idx) => ({
+                originalIdx: idx,
+                answer: q.answer,
+                icon: getClipartForQuestion(q, startIndex + idx)
+            }));
+
+            // Putar/acak posisi jawaban kanan
+            if (rightSideAnswers.length > 1) {
+                const shifted = [...rightSideAnswers];
+                shifted.push(shifted.shift());
+                if (shifted.length > 3) {
+                    const tmp = shifted[0];
+                    shifted[0] = shifted[2];
+                    shifted[2] = tmp;
+                }
+                rightSideAnswers.splice(0, rightSideAnswers.length, ...shifted);
+            }
+
+            const rowsHtml = questionsList.map((q, idx) => {
+                const no = startNo + idx;
+                const iconLeft = getClipartForQuestion(q, startIndex + idx);
+                const rightItem = rightSideAnswers[idx];
+                const pal = getPaletteColor(idx);
+
+                return `
+                    <div class="grid grid-cols-11 items-center gap-1 py-1">
+                        <!-- Kartu Soal Kiri -->
+                        <div class="col-span-5 border-2 ${pal.border} bg-white rounded-xl px-2.5 py-1.5 flex items-center justify-between shadow-sm">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-5 h-5 rounded-full ${pal.accent} text-white font-display font-bold text-[10px] flex items-center justify-center shrink-0">
+                                    ${no}
+                                </span>
+                                ${renderStyledIconBadge(iconLeft, startIndex + idx, 'w-5 h-5', 'w-3.5 h-3.5')}
+                                <span class="font-math font-extrabold text-sm text-slate-800">${q.num1} ${q.op} ${q.num2}</span>
+                            </div>
+                            <span class="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white ring-2 ring-emerald-400 shrink-0"></span>
+                        </div>
+
+                        <!-- Area Tarik Garis Tengah -->
+                        <div class="col-span-2 flex flex-col items-center justify-center px-1">
+                            ${showAnswer 
+                                ? `<span class="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full border border-emerald-300">Jwb: ${q.answer}</span>`
+                                : `<div class="w-full border-b border-dotted border-slate-300"></div>`
+                            }
+                        </div>
+
+                        <!-- Kartu Jawaban Acak Kanan -->
+                        <div class="col-span-4 border-2 border-emerald-300 bg-emerald-50/60 rounded-xl px-2.5 py-1.5 flex items-center justify-between shadow-sm">
+                            <span class="w-3 h-3 rounded-full bg-amber-500 border-2 border-white ring-2 ring-amber-400 shrink-0"></span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="font-math font-extrabold text-base text-emerald-950">${rightItem.answer}</span>
+                                ${renderStyledIconBadge(rightItem.icon, startIndex + idx + 2, 'w-5 h-5', 'w-3.5 h-3.5')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return rowsHtml;
+        }
+
+        /**
+         * TIPE 4: Soal Kotak-Kotak Jumlah Benda (Visual Clipart & Bentuk Berwarna)
+         */
+        function renderCountingBoxItem(q, number, showAnswer, index) {
+            const icon = getClipartForQuestion(q, index);
+            const pal = getPaletteColor(index);
+            const c1 = Math.min(Math.max(q.num1, 1), 10);
+            const c2 = Math.min(Math.max(q.num2, 1), 10);
+
+            const makeBoxGrid = (count, actualNum) => {
+                if (actualNum > 10) {
+                    return `
+                        <div class="flex items-center justify-center gap-1.5 py-1 px-2 bg-white rounded-xl border ${pal.border}">
+                            ${renderStyledIconBadge(icon, index, 'w-6 h-6', 'w-4 h-4')}
+                            <span class="font-math font-extrabold text-sm ${pal.text}">× ${actualNum}</span>
+                        </div>
+                    `;
+                }
+                let cells = '';
+                for (let i = 0; i < count; i++) {
+                    cells += renderStyledIconBadge(icon, index + i, 'w-5 h-5', 'w-3.5 h-3.5');
+                }
+                return `<div class="flex flex-wrap items-center justify-center gap-1 p-1.5 bg-white rounded-xl border ${pal.border} min-h-[30px]">${cells}</div>`;
+            };
+
+            return `
+                <div class="border-2 ${pal.border} rounded-2xl px-2.5 py-1.5 ${pal.bg} shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-5 h-5 rounded-full ${pal.accent} text-white font-display font-bold text-[10px] flex items-center justify-center">
+                                ${number}
+                            </span>
+                            <span class="text-[10px] font-bold ${pal.text}">Hitung Kotak ${icon.name}:</span>
+                        </div>
+                        <span class="text-[10px] font-math font-bold text-slate-500 bg-white/80 px-2 py-0.2 rounded-full border ${pal.border}">${q.num1} ${q.op} ${q.num2} = ...</span>
+                    </div>
+
+                    <div class="grid grid-cols-11 items-center gap-1">
+                        <!-- Kotak Benda 1 -->
+                        <div class="col-span-4">
+                            ${makeBoxGrid(c1, q.num1)}
+                        </div>
+
+                        <!-- Operator -->
+                        <div class="col-span-1 text-center font-math font-extrabold text-base ${pal.text}">
+                            ${q.op}
+                        </div>
+
+                        <!-- Kotak Benda 2 -->
+                        <div class="col-span-4">
+                            ${makeBoxGrid(c2, q.num2)}
+                        </div>
+
+                        <!-- Sama Dengan & Kotak Hasil -->
+                        <div class="col-span-2 flex flex-col items-center">
+                            <div class="w-full h-8 rounded-xl border-2 border-dashed ${pal.border} bg-white flex items-center justify-center font-math font-extrabold text-base ${showAnswer ? 'text-emerald-600' : ''}">
+                                ${showAnswer ? q.answer : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Membuat Halaman Sampul Buku (Ukuran Setengah F4 / A5)
+         */
+        function renderCoverPage(classLabel, totalQuestions, themeKey) {
+            const icons = CLIPART_THEMES[themeKey] || CLIPART_THEMES.FRUITS;
+            return `
+                <div class="half-f4-page bg-gradient-to-b from-indigo-50 via-white to-pink-50 border-r border-slate-100">
+                    <div class="h-full w-full border-4 border-double border-indigo-400 rounded-3xl p-4 flex flex-col justify-between relative bg-white/90 shadow-inner">
+                        
+                        <div class="text-center">
+                            <div class="inline-block bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-sm mb-1.5">
+                                Buku Latihan Berhitung Terpadu
+                            </div>
+                            <h1 class="font-display text-3xl font-bold text-indigo-950 leading-tight">
+                                MAHIR HITUNG<br>
+                                <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-pink-600">MATEMATIKA</span>
+                            </h1>
+                            <p class="text-[11px] font-bold text-slate-500 mt-1">Hitung Mendatar • Bersusun Ke Bawah • Kotak Jumlah Benda</p>
+                        </div>
+
+                        <!-- Preview Mini Ragaman Soal di Sampul -->
+                        <div class="my-1.5 bg-gradient-to-tr from-indigo-100 via-purple-50 to-amber-50 rounded-2xl p-3 border-2 border-indigo-200 text-center space-y-2">
+                            <div class="flex justify-center items-center gap-2">
+                                <img src="${icons[0].url}" class="w-9 h-9 drop-shadow" alt="icon">
+                                <div class="bg-white px-3 py-1 rounded-xl border border-indigo-300 shadow-sm font-math font-bold text-base text-indigo-900">
+                                    5 + 5 = 10 &nbsp;|&nbsp; 2 + 3 = 5
+                                </div>
+                                <img src="${icons[1].url}" class="w-9 h-9 drop-shadow" alt="icon">
+                            </div>
+                            <div class="inline-flex items-center gap-2 bg-amber-400 text-indigo-950 font-display font-bold text-xs px-4 py-1 rounded-full shadow">
+                                <span>🎓 ${classLabel || 'Semua Kelas'}</span>
+                            </div>
+                        </div>
+
+                        <!-- Kotak Identitas Siswa -->
+                        <div class="bg-slate-50 border-2 border-indigo-200 rounded-2xl p-3 space-y-2 text-xs">
+                            <div class="font-display font-bold text-indigo-900 text-center text-xs border-b border-indigo-100 pb-1">
+                                IDENTITAS BINTANG MATEMATIKA
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-600 w-20">Nama Siswa</span>
+                                <span class="text-slate-400">:</span>
+                                <div class="flex-1 border-b border-dotted border-slate-400 h-4"></div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-600 w-20">Kelas / Absen</span>
+                                <span class="text-slate-400">:</span>
+                                <div class="flex-1 border-b border-dotted border-slate-400 h-4 font-semibold text-indigo-700">${classLabel}</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-600 w-20">Sekolah</span>
+                                <span class="text-slate-400">:</span>
+                                <div class="flex-1 border-b border-dotted border-slate-400 h-4"></div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between text-[10px] font-bold text-slate-400 pt-1">
+                            <span>📚 Database: Google Spreadsheet</span>
+                            <span>✨ Hal. 1 (Sampul Depan)</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Membuat 1 Halaman Isi Buku yang Fleksibel Berdasarkan Ceklis Variasi Soal
+         * Bisa menampilkan:
+         * - Hitung Ke Samping (Ukuran Besar)
+         * - Hitung Bersusun Ke Bawah
+         * - Mencocokkan / Tarik Garis Soal
+         * - Kotak Jumlah Benda Bergambar
+         */
+        function renderContentPage(questionsChunk, pageNumber, startNumber, classLabel, enabledTypes, showAnswer, themeKey) {
+            const activeTypes = enabledTypes.length > 0 ? enabledTypes : ['HORIZONTAL'];
+            const buckets = {
+                HORIZONTAL: [],
+                VERTICAL: [],
+                MATCHING: [],
+                COUNTING_BOX: []
+            };
+
+            // Bagikan soal di halaman ini secara proporsional ke jenis-jenis soal yang diceklis pengguna
+            const totalQ = questionsChunk.length;
+            let cursor = 0;
+
+            activeTypes.forEach((type, idx) => {
+                const isLast = idx === activeTypes.length - 1;
+                let share = Math.floor(totalQ / activeTypes.length);
+                if (type === 'HORIZONTAL' && activeTypes.length > 1) {
+                    share = Math.max(2, Math.ceil(totalQ * 0.35));
+                } else if (type === 'COUNTING_BOX' && activeTypes.length > 2) {
+                    share = Math.min(2, Math.max(1, share));
+                }
+                const sliceEnd = isLast ? totalQ : Math.min(totalQ, cursor + Math.max(1, share));
+                buckets[type] = questionsChunk.slice(cursor, sliceEnd);
+                cursor = sliceEnd;
+            });
+
+            // Jika masih ada sisa soal karena pembulatan, masukkan ke tipe aktif pertama
+            if (cursor < totalQ) {
+                buckets[activeTypes[0]].push(...questionsChunk.slice(cursor));
+            }
+
+            let currentNo = startNumber;
+
+            // Render Bagian A: Penjumlahan/Hitung Ke Samping (Besar)
+            const horizHtml = buckets.HORIZONTAL.map((q) => {
+                const no = currentNo++;
+                return renderLargeHorizontalItem(q, no, showAnswer, no);
+            }).join('');
+
+            // Render Bagian B: Hitung Bersusun Ke Bawah
+            const vertCols = buckets.VERTICAL.length <= 3 ? 'grid-cols-3' : 'grid-cols-4';
+            const vertHtml = buckets.VERTICAL.map((q) => {
+                const no = currentNo++;
+                return renderCompactVerticalItem(q, no, showAnswer, no);
+            }).join('');
+
+            // Render Bagian C: Mencocokkan / Tarik Garis
+            const matchStartNo = currentNo;
+            const matchHtml = renderMatchingLinesSection(buckets.MATCHING, matchStartNo, showAnswer, matchStartNo);
+            currentNo += buckets.MATCHING.length;
+
+            // Render Bagian D: Kotak Jumlah Benda
+            const boxHtml = buckets.COUNTING_BOX.map((q) => {
+                const no = currentNo++;
+                return renderCountingBoxItem(q, no, showAnswer, no);
+            }).join('');
+
+            return `
+                <div class="half-f4-page page-pattern-dots" style="padding: 6.5mm 8.5mm;">
+                    <!-- Header Ringkas Halaman Buku -->
+                    <div class="bg-white border-2 border-indigo-200 rounded-xl px-3 py-1.5 flex items-center justify-between shadow-sm mb-1.5">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                            <div>
+                                <h2 class="font-display font-bold text-xs text-indigo-950 leading-none">Latihan Matematika Kreatif</h2>
+                                <p class="text-[9px] font-semibold text-slate-500 mt-0.5">Kerjakan soal dengan teliti sesuai petunjuk!</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="bg-indigo-100 text-indigo-800 font-bold text-[9px] px-2 py-0.5 rounded-full">${classLabel}</span>
+                            <span class="bg-amber-100 text-amber-800 font-bold text-[9px] px-2 py-0.5 rounded-full border border-amber-300">Nilai: ......</span>
+                        </div>
+                    </div>
+
+                    <!-- ISI HALAMAN SESUAI CEKLIS VARIASI SOAL -->
+                    <div class="flex-1 flex flex-col justify-around gap-1.5 overflow-hidden">
+                        
+                        ${buckets.HORIZONTAL.length > 0 ? `
+                        <!-- VARIASI 1: SOAL MENDATAR KE SAMPING UKURAN BESAR -->
+                        <div class="bg-indigo-50/60 border border-indigo-200 rounded-2xl p-2">
+                            <div class="text-[10px] font-display font-bold text-indigo-900 mb-1 flex items-center justify-between">
+                                <span>➡️ Hitung Ke Samping (Isi Kotak Jawaban)</span>
+                                <span class="text-[9px] text-indigo-600 font-sans">Tulis angka yang tepat!</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-1.5">
+                                ${horizHtml}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${buckets.VERTICAL.length > 0 ? `
+                        <!-- VARIASI 2: SOAL BERSUSUN KE BAWAH -->
+                        <div class="bg-amber-50/50 border border-amber-200 rounded-2xl p-2">
+                            <div class="text-[10px] font-display font-bold text-amber-900 mb-1 flex items-center justify-between">
+                                <span>⬇️ Hitung Bersusun Ke Bawah</span>
+                                <span class="text-[9px] text-amber-700 font-sans">Susun satuan & puluhan!</span>
+                            </div>
+                            <div class="grid ${vertCols} gap-1.5">
+                                ${vertHtml}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${buckets.MATCHING.length > 0 ? `
+                        <!-- VARIASI 3: MENCOCOKKAN / TARIK GARIS SOAL -->
+                        <div class="bg-emerald-50/50 border border-emerald-200 rounded-2xl p-2">
+                            <div class="text-[10px] font-display font-bold text-emerald-900 mb-1 flex items-center justify-between">
+                                <span>🔗 Mencocokkan Soal (Tarik Garis ke Jawaban)</span>
+                                <span class="text-[9px] text-emerald-700 font-sans">Hubungkan titik kiri ke kanan!</span>
+                            </div>
+                            <div class="divide-y divide-emerald-100/60">
+                                ${matchHtml}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${buckets.COUNTING_BOX.length > 0 ? `
+                        <!-- VARIASI 4: KOTAK JUMLAH BENDA BERGAMBAR -->
+                        <div class="bg-pink-50/50 border border-pink-200 rounded-2xl p-2">
+                            <div class="text-[10px] font-display font-bold text-pink-900 mb-1 flex items-center justify-between">
+                                <span>🍎 Kotak Jumlah Benda & Gambar</span>
+                                <span class="text-[9px] text-pink-600 font-sans">Hitung objek di tiap kotak!</span>
+                            </div>
+                            <div class="flex flex-col gap-1.5">
+                                ${boxHtml}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                    </div>
+
+                    <!-- Footer Halaman Buku -->
+                    <div class="mt-1 pt-1 border-t border-slate-200 flex items-center justify-between text-[9px] font-bold text-slate-500 bg-white/90 px-2 py-0.5 rounded-lg">
+                        <span>⭐ Paraf Guru / Orang Tua: ......................</span>
+                        <div class="bg-indigo-600 text-white px-2.5 py-0.5 rounded-full font-display">
+                            Hal. ${pageNumber}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Menyusun urutan halaman A5 menjadi Lembar F4 Timbal-Balik (4 Halaman A5 per 1 Lembar F4 Bolak-Balik)
+         */
+        let currentRenderedSheets = []; // Menyimpan data lembar { side: 'FRONT'|'BACK', sheetIndex, leftHtml, rightHtml, label }
+
+        function renderBook() {
+            const container = document.getElementById('bookContainer');
+            const selectedClass = document.getElementById('selectClass')?.value || activeHeaderTab || 'ALL';
+            const selectedTopic = document.getElementById('selectTopic')?.value || 'ALL';
+            const density = parseInt(document.getElementById('selectDensity')?.value || '10', 10);
+            const duplexMode = document.getElementById('selectDuplexMode')?.value || 'BOOKLET';
+            const themeKey = document.getElementById('selectTheme')?.value || 'FRUITS';
+            const customClassLabel = document.getElementById('customClassInput')?.value?.trim() || 'Kelas 1 SD';
+            const includeCover = document.getElementById('chkCover')?.checked ?? true;
+            const autoFill4Pages = document.getElementById('chkAutoFill4Pages')?.checked ?? true;
+            const showAnswer = document.getElementById('chkAnswerKey')?.checked ?? false;
+
+            // Baca ceklis variasi soal yang aktif
+            const enabledTypes = [];
+            if (document.getElementById('chkVarHorizontal')?.checked) enabledTypes.push('HORIZONTAL');
+            if (document.getElementById('chkVarVertical')?.checked) enabledTypes.push('VERTICAL');
+            if (document.getElementById('chkVarMatching')?.checked) enabledTypes.push('MATCHING');
+            if (document.getElementById('chkVarCountingBox')?.checked) enabledTypes.push('COUNTING_BOX');
+            if (enabledTypes.length === 0) enabledTypes.push('HORIZONTAL');
+
+            // Filter soal berdasarkan pilihan kelas/header dan topik
+            let filtered = allParsedQuestions.filter(q => {
+                const matchClass = selectedClass === 'ALL' || q.kelas === selectedClass;
+                const matchTopic = selectedTopic === 'ALL' || q.topic === selectedTopic;
+                return matchClass && matchTopic;
+            });
+
+            if (filtered.length === 0 && allParsedQuestions.length > 0) {
+                filtered = [...allParsedQuestions];
+            }
+
+            const displayClassLabel = selectedClass !== 'ALL' ? selectedClass : (customClassLabel || 'Semua Kelas');
+
+            // Agar pas dicetak timbal balik (1 lembar F4 bolak-balik = 4 halaman buku A5),
+            // jika "Genapkan 4 Hal/F4" aktif, pastikan jumlah soal cukup untuk mengisi kelipatan 4 halaman A5.
+            const contentPagesNeededFor4 = includeCover ? 3 : 4;
+            const minQuestionsFor4Pages = contentPagesNeededFor4 * density;
+
+            let workingQuestions = [...filtered];
+            if (autoFill4Pages && workingQuestions.length > 0 && workingQuestions.length < minQuestionsFor4Pages) {
+                workingQuestions = expandQuestionsFromSeed(workingQuestions, minQuestionsFor4Pages);
+            }
+
+            // 1. Susun daftar halaman tunggal (A5 / Setengah F4) berurutan: Hal 1, Hal 2, Hal 3, Hal 4, dst.
+            const logicalPages = [];
+
+            if (includeCover) {
+                logicalPages.push({
+                    pageNo: 1,
+                    html: renderCoverPage(displayClassLabel, workingQuestions.length, themeKey)
+                });
+            }
+
+            let qCursor = 0;
+            while (qCursor < workingQuestions.length) {
+                const chunk = workingQuestions.slice(qCursor, qCursor + density);
+                const pageNo = logicalPages.length + 1;
+                logicalPages.push({
+                    pageNo,
+                    html: renderContentPage(chunk, pageNo, qCursor + 1, displayClassLabel, enabledTypes, showAnswer, themeKey)
+                });
+                qCursor += density;
+            }
+
+            // Genapkan jumlah halaman menjadi kelipatan 4 agar cetak timbal-balik (Depan & Belakang) selalu pas 4 halaman per lembar F4
+            while (logicalPages.length % 4 !== 0) {
+                const extraPageNo = logicalPages.length + 1;
+                const extraChunk = expandQuestionsFromSeed(filtered.length ? filtered : allParsedQuestions, density).slice(0, density);
+                logicalPages.push({
+                    pageNo: extraPageNo,
+                    html: renderContentPage(extraChunk, extraPageNo, (extraPageNo - 1) * density + 1, displayClassLabel, enabledTypes, showAnswer, themeKey)
+                });
+            }
+
+            // 2. Pasangkan ke Lembar F4 sesuai mode Timbal-Balik (4 Halaman per Lembar Kertas F4 Bolak-Balik)
+            currentRenderedSheets = [];
+            const totalPhysicalPapers = logicalPages.length / 4;
+
+            for (let p = 0; p < totalPhysicalPapers; p++) {
+                const base = p * 4;
+                const p1 = logicalPages[base];     // Hal 1
+                const p2 = logicalPages[base + 1]; // Hal 2
+                const p3 = logicalPages[base + 2]; // Hal 3
+                const p4 = logicalPages[base + 3]; // Hal 4
+
+                if (duplexMode === 'BOOKLET') {
+                    // Mode Lipat Buku (Saddle-Stitch):
+                    // Sisi Depan: Kiri = Hal 4, Kanan = Hal 1
+                    // Sisi Belakang (dibalik horizontal): Kiri = Hal 2, Kanan = Hal 3
+                    currentRenderedSheets.push({
+                        paperNo: p + 1,
+                        side: 'FRONT',
+                        title: `Kertas F4 #${p + 1} — SISI DEPAN (Lipat Buku: Kiri Hal. ${p4.pageNo} | Kanan Hal. ${p1.pageNo})`,
+                        leftPage: p4,
+                        rightPage: p1
+                    });
+                    currentRenderedSheets.push({
+                        paperNo: p + 1,
+                        side: 'BACK',
+                        title: `Kertas F4 #${p + 1} — SISI BELAKANG / TIMBAL BALIK (Kiri Hal. ${p2.pageNo} | Kanan Hal. ${p3.pageNo})`,
+                        leftPage: p2,
+                        rightPage: p3
+                    });
+                } else if (duplexMode === 'CUT_DUPLEX') {
+                    // Mode Potong Tengah Bolak-Balik:
+                    // Sisi Depan: Kiri = Hal 1, Kanan = Hal 3
+                    // Sisi Belakang: Kiri = Hal 4, Kanan = Hal 2 (sehingga saat dipotong tengah, tumpukan kiri Hal 1-2, tumpukan kanan Hal 3-4)
+                    currentRenderedSheets.push({
+                        paperNo: p + 1,
+                        side: 'FRONT',
+                        title: `Kertas F4 #${p + 1} — SISI DEPAN (Kiri Hal. ${p1.pageNo} | Kanan Hal. ${p3.pageNo})`,
+                        leftPage: p1,
+                        rightPage: p3
+                    });
+                    currentRenderedSheets.push({
+                        paperNo: p + 1,
+                        side: 'BACK',
+                        title: `Kertas F4 #${p + 1} — SISI BELAKANG / TIMBAL BALIK (Kiri Hal. ${p4.pageNo} | Kanan Hal. ${p2.pageNo})`,
+                        leftPage: p4,
+                        rightPage: p2
+                    });
+                } else {
+                    // Mode Berurutan Biasa: [Hal 1 | Hal 2] lalu [Hal 3 | Hal 4]
+                    currentRenderedSheets.push({
+                        paperNo: p + 1,
+                        side: 'FRONT',
+                        title: `Kertas F4 #${p + 1} — SISI DEPAN (Kiri Hal. ${p1.pageNo} | Kanan Hal. ${p2.pageNo})`,
+                        leftPage: p1,
+                        rightPage: p2
+                    });
+                    currentRenderedSheets.push({
+                        paperNo: p + 1,
+                        side: 'BACK',
+                        title: `Kertas F4 #${p + 1} — SISI BELAKANG (Kiri Hal. ${p3.pageNo} | Kanan Hal. ${p4.pageNo})`,
+                        leftPage: p3,
+                        rightPage: p4
+                    });
+                }
+            }
+
+            document.getElementById('questionCountInfo').textContent = 
+                `${filtered.length} Soal Database • ${logicalPages.length} Halaman A5 (${density} soal/hal) = ${totalPhysicalPapers} Kertas F4 Timbal-Balik`;
+
+            // 3. Render ke layar utama
+            let sheetsHtml = '';
+            currentRenderedSheets.forEach((sheet) => {
+                const badgeColor = sheet.side === 'FRONT' 
+                    ? 'bg-emerald-600 text-white' 
+                    : 'bg-purple-600 text-white';
+                const sideText = sheet.side === 'FRONT' ? 'SISI DEPAN' : 'SISI BELAKANG (TIMBAL-BALIK)';
+
+                sheetsHtml += `
+                    <div class="sheet-scaler">
+                        <div class="no-print w-full max-w-[330mm] mb-2 mt-2 flex flex-wrap items-center justify-between gap-2 bg-white px-3 sm:px-4 py-2 rounded-xl shadow-sm border border-slate-200">
+                            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-bold text-slate-700">
+                                <span class="${badgeColor} px-2.5 py-0.5 rounded-full text-[10px]">${sideText}</span>
+                                <span>${sheet.title}</span>
+                            </div>
+                            <span class="text-[10px] sm:text-[11px] text-slate-500 font-semibold hidden sm:inline">Ukuran F4 Lanskap (330 × 215 mm)</span>
+                        </div>
+                        <div class="f4-sheet" data-side="${sheet.side}">
+                            ${sheet.leftPage.html}
+                            ${sheet.rightPage.html}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = sheetsHtml;
+            lucide.createIcons();
+        }
+
+        /**
+         * Membuka Tab Jendela Baru (New Window Tab) khusus untuk Preview Cetak & Print Timbal-Balik yang bersih
+         */
+        function openPrintWindow(filterSide = 'ALL') {
+            const printWin = window.open('', '_blank');
+            if (!printWin) {
+                // Jika popup diblokir browser, fallback ke window.print() langsung
+                window.print();
+                return;
+            }
+
+            const sheetsToPrint = currentRenderedSheets.filter(s => filterSide === 'ALL' || s.side === filterSide);
+            const sheetsMarkup = sheetsToPrint.map((sheet, idx) => `
+                <div class="print-sheet-label no-print">
+                    <span><strong>Lembar Cetak #${idx + 1}</strong> — ${sheet.title}</span>
+                    <span>Kertas F4 (330mm x 215mm) Lanskap</span>
+                </div>
+                <div class="f4-sheet">
+                    ${sheet.leftPage.html}
+                    ${sheet.rightPage.html}
+                </div>
+            `).join('');
+
+            const modeTitle = filterSide === 'FRONT' 
+                ? 'Hanya Sisi Depan (Langkah 1 Cetak Timbal-Balik)' 
+                : (filterSide === 'BACK' ? 'Hanya Sisi Belakang (Langkah 2 Cetak Timbal-Balik)' : 'Semua Halaman (Sisi Depan & Belakang)');
+
+            printWin.document.open();
+            printWin.document.write(`
+                <!DOCTYPE html>
+                <html lang="id">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Preview Cetak Buku Matematika F4 - ${modeTitle}</title>
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+                    <style>
+                        body {
+                            font-family: 'Quicksand', sans-serif;
+                            background: #334155;
+                            margin: 0;
+                            padding: 70px 0 40px 0;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                        }
+                        h1, h2, h3, .font-display { font-family: 'Fredoka', sans-serif; }
+                        .font-math { font-family: 'JetBrains Mono', monospace; }
+
+                        .top-bar {
+                            position: fixed;
+                            top: 0; left: 0; right: 0;
+                            background: #0f172a;
+                            color: white;
+                            padding: 12px 24px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            z-index: 9999;
+                            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                        }
+
+                        .print-sheet-label {
+                            width: 330mm;
+                            color: #e2e8f0;
+                            font-size: 12px;
+                            display: flex;
+                            justify-content: space-between;
+                            margin: 12px 0 6px 0;
+                            padding: 0 4px;
+                        }
+
+                        .f4-sheet {
+                            width: 330mm;
+                            height: 215mm;
+                            background: white;
+                            margin: 0 auto 24px auto;
+                            box-shadow: 0 20px 30px rgba(0,0,0,0.4);
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                            position: relative;
+                            overflow: hidden;
+                            box-sizing: border-box;
+                        }
+
+                        .f4-sheet::after {
+                            content: '';
+                            position: absolute;
+                            top: 0; bottom: 0; left: 50%;
+                            border-left: 2px dashed #cbd5e1;
+                            transform: translateX(-50%);
+                            z-index: 10;
+                        }
+
+                        .half-f4-page {
+                            width: 165mm;
+                            height: 215mm;
+                            padding: 7mm 9mm;
+                            box-sizing: border-box;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: space-between;
+                            position: relative;
+                            overflow: hidden;
+                            background-color: #ffffff;
+                        }
+
+                        .page-pattern-dots {
+                            background-image: radial-gradient(#e2e8f0 1.2px, transparent 1.2px);
+                            background-size: 16px 16px;
+                        }
+
+                        @media print {
+                            @page {
+                                size: 330mm 215mm;
+                                margin: 0mm;
+                            }
+                            html, body {
+                                background: white !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                            }
+                            .no-print { display: none !important; }
+                            .f4-sheet {
+                                margin: 0 !important;
+                                box-shadow: none !important;
+                                page-break-after: always;
+                                break-after: page;
+                            }
+                            .f4-sheet:last-child {
+                                page-break-after: auto;
+                                break-after: auto;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="top-bar no-print">
+                        <div>
+                            <div class="font-bold text-base text-yellow-400">🖨️ Mode Preview Cetak Buku F4 (Timbal-Balik 4 Halaman)</div>
+                            <div class="text-xs text-slate-300">Menampilkan: <b>${modeTitle}</b> • Pastikan ukuran kertas printer <b>F4 / Folio (330x215mm) Landscape</b></div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="window.print()" class="bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-bold px-5 py-2 rounded-xl text-sm shadow-lg cursor-pointer">
+                                🖨️ Cetak Sekarang (Print)
+                            </button>
+                            <button onclick="window.close()" class="bg-slate-700 hover:bg-slate-600 text-white font-semibold px-4 py-2 rounded-xl text-sm cursor-pointer">
+                                Tutup Tab
+                            </button>
+                        </div>
+                    </div>
+                    ${sheetsMarkup}
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+        }
+
+        // Jalankan saat halaman dibuka
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadSpreadsheetData(false);
+        });
+    </script>
+</body>
+</html>
